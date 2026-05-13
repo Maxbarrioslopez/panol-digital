@@ -221,7 +221,31 @@ JWT_REFRESH_SECRET=tu-clave-refresh-jwt
 VITE_API_URL=http://localhost:4000
 ```
 
-## Licencia
+## Deploy en Vercel
 
-Proyecto de práctica profesional — INACAP 2026.
-Desarrollado por Maximiliano Barrios.
+El frontend está deployado en Vercel como SPA:
+
+```
+URL: https://frontend-1frhq5bwr-maxbarrioslopezs-projects.vercel.app
+```
+
+> **Nota:** El frontend se conecta al backend en `http://localhost:4000`. Al abrirlo desde Vercel sin el backend corriendo, verás el login y la UI pero las API calls fallarán. Para prueba completa, clona el repo y corre localmente.
+
+### Desplegar tu propio frontend
+
+```bash
+# 1. Clonar
+git clone https://github.com/Maxbarrioslopez/panol-digital.git
+cd panol-digital
+
+# 2. Instalar frontend
+cd frontend && npm install
+
+# 3. Build
+npm run build
+
+# 4. Deploy a Vercel (CLI)
+vercel deploy . --prod -y
+```
+
+## Variables de entorno
