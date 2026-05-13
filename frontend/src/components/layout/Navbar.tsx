@@ -7,8 +7,9 @@ import { LogOut, Bell, Menu } from 'lucide-react'
 
 export function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { t } = useTranslation()
-  const { user, logout } = useAuthStore()
+  const { user, token, logout } = useAuthStore()
   const { toggleSidebar } = useThemeStore()
+  const isDemo = token === 'demo-token'
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -19,9 +20,15 @@ export function Navbar({ onMenuClick }: { onMenuClick: () => void }) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <div className="flex-1">
+        <div className="flex items-center gap-3">
           <h1 className="text-lg font-semibold tracking-tight">{t('appName')}</h1>
+          {isDemo && (
+            <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+              DEMO
+            </span>
+          )}
         </div>
+        <div className="flex-1" />
         <div className="flex items-center gap-2">
           <LanguageSwitcher />
           <ThemeToggle />

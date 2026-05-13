@@ -17,7 +17,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const { token } = useAuthStore.getState()
+    if (error.response?.status === 401 && token !== 'demo-token') {
       useAuthStore.getState().logout()
       window.location.href = '/login'
     }

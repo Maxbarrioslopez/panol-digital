@@ -1,18 +1,19 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/authStore'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ClipboardList, RotateCcw,
   Users, BarChart3, Settings, ShieldCheck, Factory,
   ShoppingCart, Unlock, TrendingUp, Download, Wrench,
-  Tag, History, Key, User, Box, Receipt
+  Tag, History, Key, User, Box, Receipt, LogOut
 } from 'lucide-react'
 
 export function Sidebar() {
   const { t } = useTranslation()
-  const { user } = useAuthStore()
+  const { user, logout } = useAuthStore()
   const location = useLocation()
+  const navigate = useNavigate()
   const rolId = user?.rolId
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/')
@@ -33,7 +34,7 @@ export function Sidebar() {
   )
 
   return (
-    <aside className="w-64 border-r bg-background h-[calc(100vh-3.5rem)] sticky top-14 hidden md:block overflow-y-auto">
+    <aside className="relative w-64 border-r bg-background h-[calc(100vh-3.5rem)] sticky top-14 hidden md:block overflow-y-auto">
       <nav className="flex flex-col gap-1 p-4">
         {renderLink('/', LayoutDashboard, t('dashboard'))}
         {renderLink('/perfil', User, 'Mi perfil')}
@@ -95,6 +96,16 @@ export function Sidebar() {
           </>
         )}
       </nav>
+
+      <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-background">
+        <button
+          onClick={() => { logout(); navigate('/login') }}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+        >
+          <LogOut className="h-4 w-4" />
+          <span className="font-medium">Cerrar sesión</span>
+        </button>
+      </div>
     </aside>
   )
 }
