@@ -1,9 +1,11 @@
 import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'sonner'
 import { useAuthStore } from './store/authStore'
 import { useThemeStore } from './store/uiStore'
 import { AuthProvider } from './context/AuthContext'
 import { PrivateLayout } from './components/layout/PrivateLayout'
+import { useSocket } from './hooks/useSocket'
 import { Login } from './pages/auth/Login'
 import { RecuperarClave } from './pages/auth/RecuperarClave'
 import { CambiarClave } from './pages/auth/CambiarClave'
@@ -37,6 +39,7 @@ import { PerfilPage } from './pages/common/PerfilPage'
 function App() {
   const initAuth = useAuthStore((s) => s.initAuth)
   const theme = useThemeStore((s) => s.theme)
+  useSocket()
 
   useEffect(() => {
     initAuth()
@@ -46,6 +49,7 @@ function App() {
 
   return (
     <AuthProvider>
+      <Toaster position="top-right" richColors />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/recuperar-clave" element={<RecuperarClave />} />

@@ -18,3 +18,10 @@ export async function exportarExcel(req: AuthRequest, res: Response) {
   res.setHeader('Content-Disposition', 'attachment; filename=reporte.xlsx');
   res.send(buffer);
 }
+
+export async function exportarPDF(req: AuthRequest, res: Response) {
+  const buffer = await service.exportarPDF(req.body.tipo, req.body.filtros);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'attachment; filename=reporte.pdf');
+  res.send(buffer);
+}

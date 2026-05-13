@@ -22,7 +22,8 @@ import { reportesRouter } from './modules/reportes/reportes.routes';
 import { auditoriaRouter } from './modules/auditoria/auditoria.routes';
 import { notificacionesRouter } from './modules/notificaciones/notificaciones.routes';
 import { procesosRouter } from './modules/procesos/procesos.routes';
-import { setupWebSocket } from './websocket/events';
+import { setupWebSocket, notifyRoom } from './websocket/events';
+import { notificationBus } from './websocket/notification-bus';
 
 export const prisma = new PrismaClient();
 export const app = express();
@@ -60,6 +61,15 @@ app.use('/api/procesos', procesosRouter);
 
 // WebSocket
 setupWebSocket(io);
+
+// Forward app events to Socket.io rooms
+notificationBus.on('app-event', (event) => {
+  if (event.room) {
+    notifyRoom(io, event.room, event.type, event.payload);
+  } else {
+    io.emit(event.type, event.payload);
+  }
+});
 
 // Global error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

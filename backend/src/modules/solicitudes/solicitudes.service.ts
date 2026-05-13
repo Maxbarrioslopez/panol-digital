@@ -1,4 +1,5 @@
 import { prisma } from '../../config/database';
+import { notificationBus } from '../../websocket/notification-bus';
 
 export async function listar(trabajadorId?: number) {
   return prisma.solicitud.findMany({
@@ -105,8 +106,8 @@ export async function crear(data: any, trabajadorId: number) {
   }
 
   // 5. Crear solicitud
-  return prisma.$transaction(async (tx) => {
-    const solicitud = await tx.solicitud.create({
+  const solicitud = await prisma.$transaction(async (tx) => {
+    const s = await tx.solicitud.create({
       data: {
         trabajadorId,
         otId: data.otId,
@@ -133,8 +134,21 @@ export async function crear(data: any, trabajadorId: number) {
       },
     });
 
-    return solicitud;
+    return s;
   });
+
+  notificationBus.emitEvent({
+    type: 'solicitud-creada',
+    room: 'panolero',
+    payload: { solicitudId: solicitud.id, trabajadorId: solicitud.trabajadorId, esUrgente: solicitud.esUrgente },
+  });
+  notificationBus.emitEvent({
+    type: 'solicitud-creada',
+    room: 'supervisor',
+    payload: { solicitudId: solicitud.id, trabajadorId: solicitud.trabajadorId, esUrgente: solicitud.esUrgente },
+  });
+
+  return solicitud;
 }
 
 export async function procesar(id: number, data: any, panoleroId: number) {
@@ -147,7 +161,7 @@ export async function procesar(id: number, data: any, panoleroId: number) {
     throw new Error('La solicitud no puede ser procesada en su estado actual');
   }
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     // Procesar cada ítem
     for (const item of data.items || []) {
       const detalle = solicitud.detalles.find((d) => d.id === item.detalleId);
@@ -237,6 +251,25 @@ export async function procesar(id: number, data: any, panoleroId: number) {
 
     return updated;
   });
+
+  const updated = result;
+
+  if (updated.estado === 'LISTA_PARA_RETIRO' || updated.estado === 'PARCIAL') {
+    notificationBus.emitEvent({
+      type: 'solicitud-lista',
+      room: `trabajador-${solicitud.trabajadorId}`,
+      payload: { solicitudId: id, estado: updated.estado },
+    });
+  }
+  if (updated.estado === 'ANULADA') {
+    notificationBus.emitEvent({
+      type: 'solicitud-anulada',
+      room: `trabajador-${solicitud.trabajadorId}`,
+      payload: { solicitudId: id, motivo: 'Todos los ítems fueron anulados' },
+    });
+  }
+
+  return updated;
 }
 
 export async function entregar(id: number, panoleroId: number) {
@@ -277,6 +310,12 @@ export async function entregar(id: number, panoleroId: number) {
     });
   });
 
+  notificationBus.emitEvent({
+    type: 'solicitud-entregada',
+    room: `trabajador-${solicitud.trabajadorId}`,
+    payload: { solicitudId: id },
+  });
+
   return obtener(id);
 }
 
@@ -286,7 +325,7 @@ export async function confirmarRecepcion(id: number, trabajadorId: number) {
   if (solicitud.trabajadorId !== trabajadorId) throw new Error('No autorizado');
   if (solicitud.estado !== 'ENTREGADA') throw new Error('La solicitud no está en estado entregada');
 
-  return prisma.solicitud.update({
+  const updated = await prisma.solicitud.update({
     where: { id },
     data: {
       estado: 'COMPLETADA',
@@ -297,6 +336,19 @@ export async function confirmarRecepcion(id: number, trabajadorId: number) {
       ot: true,
     },
   });
+
+  notificationBus.emitEvent({
+    type: 'solicitud-completada',
+    room: 'panolero',
+    payload: { solicitudId: id, trabajadorId: updated.trabajadorId },
+  });
+  notificationBus.emitEvent({
+    type: 'solicitud-completada',
+    room: 'supervisor',
+    payload: { solicitudId: id, trabajadorId: updated.trabajadorId },
+  });
+
+  return updated;
 }
 
 export async function anular(id: number, data: any, usuarioId: number) {
@@ -307,7 +359,7 @@ export async function anular(id: number, data: any, usuarioId: number) {
   if (!solicitud) throw new Error('Solicitud no encontrada');
   if (!data.motivo) throw new Error('El motivo de anulación es obligatorio');
 
-  return prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     // Revertir stock si ya se descontó
     for (const det of solicitud.detalles) {
       if (det.estadoLinea === 'ENTREGADO' && Number(det.cantidadEntregada) > 0) {
@@ -337,9 +389,20 @@ export async function anular(id: number, data: any, usuarioId: number) {
         fechaAnulacion: new Date(),
       },
     });
-
-    return obtener(id);
   });
+
+  notificationBus.emitEvent({
+    type: 'solicitud-anulada',
+    room: `trabajador-${solicitud.trabajadorId}`,
+    payload: { solicitudId: id, motivo: data.motivo },
+  });
+  notificationBus.emitEvent({
+    type: 'solicitud-anulada',
+    room: 'supervisor',
+    payload: { solicitudId: id, motivo: data.motivo },
+  });
+
+  return obtener(id);
 }
 
 export async function disputar(id: number, data: any, trabajadorId: number) {
@@ -348,11 +411,24 @@ export async function disputar(id: number, data: any, trabajadorId: number) {
   if (solicitud.trabajadorId !== trabajadorId) throw new Error('No autorizado');
   if (solicitud.estado !== 'ENTREGADA') throw new Error('Solo se puede disputar una solicitud entregada');
 
-  return prisma.solicitud.update({
+  const updated = await prisma.solicitud.update({
     where: { id },
     data: {
       estado: 'EN_DISPUTA',
       observaciones: `${solicitud.observaciones || ''}\n[DISPUTA]: ${data.motivo}`,
     },
   });
+
+  notificationBus.emitEvent({
+    type: 'solicitud-disputada',
+    room: 'panolero',
+    payload: { solicitudId: id, motivo: data.motivo },
+  });
+  notificationBus.emitEvent({
+    type: 'solicitud-disputada',
+    room: 'supervisor',
+    payload: { solicitudId: id, motivo: data.motivo },
+  });
+
+  return updated;
 }

@@ -1,4 +1,5 @@
 import { prisma } from '../../config/database';
+import { notificationBus } from '../../websocket/notification-bus';
 
 export async function listar() {
   return prisma.devolucion.findMany({
@@ -23,8 +24,8 @@ export async function crear(data: any, panoleroId: number) {
   });
   if (!solicitud) throw new Error('Solicitud no encontrada');
 
-  return prisma.$transaction(async (tx) => {
-    const devolucion = await tx.devolucion.create({
+  const devolucion = await prisma.$transaction(async (tx) => {
+    const d = await tx.devolucion.create({
       data: {
         solicitudId: data.solicitudId,
         trabajadorId: data.trabajadorId,
@@ -78,13 +79,21 @@ export async function crear(data: any, panoleroId: number) {
           tipo: 'DEVOLUCION',
           insumoId: det.insumoId,
           cantidad: det.cantidadDevuelta,
-          devolucionId: devolucion.id,
+          devolucionId: d.id,
           usuarioId: panoleroId,
           observacion: `Devolución solicitud #${data.solicitudId}`,
         },
       });
     }
 
-    return devolucion;
+    return d;
   });
+
+  notificationBus.emitEvent({
+    type: 'devolucion-creada',
+    room: 'supervisor',
+    payload: { devolucionId: devolucion.id, solicitudId: data.solicitudId },
+  });
+
+  return devolucion;
 }

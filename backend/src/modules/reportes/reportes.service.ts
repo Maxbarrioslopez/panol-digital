@@ -1,5 +1,6 @@
 import { prisma } from '../../config/database';
 import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
 
 export async function stockBajo() {
   return prisma.insumo.findMany({
@@ -64,4 +65,47 @@ export async function exportarExcel(tipo: string, filtros: any) {
   }
 
   return workbook.xlsx.writeBuffer();
+}
+
+export async function exportarPDF(tipo: string, filtros: any): Promise<Buffer> {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 40 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+
+      doc.fontSize(18).text('Pañol Digital - Reporte', { align: 'center' });
+      doc.moveDown();
+      doc.fontSize(12).text(`Tipo: ${tipo}`);
+      doc.text(`Fecha: ${new Date().toLocaleDateString('es-CL')}`);
+      doc.moveDown();
+
+      if (tipo === 'stock-bajo') {
+        const data = await stockBajo();
+        doc.fontSize(14).text('Insumos con stock bajo');
+        doc.moveDown(0.5);
+        data.forEach((item, idx) => {
+          doc.fontSize(10).text(`${idx + 1}. ${item.codigoInterno} - ${item.nombre}`);
+          doc.text(`   Categoría: ${item.categoria.nombre} | Stock: ${item.stockActual} / Mín: ${item.stockMinimo}`);
+          doc.moveDown(0.3);
+        });
+      } else if (tipo === 'consumo-categoria') {
+        const data = await consumoPorCategoria() as any[];
+        doc.fontSize(14).text('Consumo por categoría');
+        doc.moveDown(0.5);
+        data.forEach((item, idx) => {
+          doc.fontSize(10).text(`${idx + 1}. ${item.categoria}`);
+          doc.text(`   Cantidad: ${item.cantidad} | Valor: $${item.valor.toFixed(2)}`);
+          doc.moveDown(0.3);
+        });
+      } else {
+        doc.text('No hay datos para el tipo seleccionado.');
+      }
+
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
 }

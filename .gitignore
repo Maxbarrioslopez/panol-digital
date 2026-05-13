@@ -2,8 +2,7 @@
 node_modules/
 */node_modules/
 
-# Environment
-.env
+# Environment (local overrides only)
 .env.local
 .env.*.local
 
