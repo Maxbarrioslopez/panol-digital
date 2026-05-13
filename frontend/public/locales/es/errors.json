@@ -1,0 +1,9 @@
+{
+  "generic": "Ha ocurrido un error",
+  "network": "Error de conexión",
+  "notFound": "No encontrado",
+  "unauthorized": "No autorizado",
+  "forbidden": "Acceso denegado",
+  "validation": "Datos inválidos",
+  "server": "Error del servidor"
+}

@@ -1,0 +1,458 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum EstadoSolicitud {
+  PENDIENTE
+  LISTA_PARA_RETIRO
+  ENTREGADA
+  COMPLETADA
+  ANULADA
+  PARCIAL
+  EN_DISPUTA
+}
+
+enum TipoMovimiento {
+  ENTRADA_COMPRA
+  SALIDA_ENTREGA
+  DEVOLUCION
+  AJUSTE_MANUAL
+  COMPRA_RECEPCION
+}
+
+enum TipoInsumo {
+  CONSUMIBLE
+  REUTILIZABLE
+  EQUIPO
+}
+
+enum EstadoInsumoDevolucion {
+  BUENO
+  DANADO
+  CUARENTENA
+}
+
+enum EstadoOT {
+  ACTIVA
+  CERRADA
+  ANULADA
+}
+
+enum EstadoLineaSolicitud {
+  SOLICITADO
+  ENTREGADO
+  ANULADO
+  DEVUELTO_PARCIAL
+  DEVUELTO_TOTAL
+}
+
+enum EstadoCompra {
+  PENDIENTE
+  AUTORIZADA
+  RECHAZADA
+  RECIBIDA
+}
+
+// ==================== CATÁLOGOS / MAESTROS ====================
+
+model Rol {
+  id            Int      @id @default(autoincrement())
+  nombre        String   @unique @db.VarChar(50)
+  nivelPermiso  Int      @default(1) @map("nivel_permiso")
+  descripcion   String?  @db.Text
+  activo        Boolean  @default(true)
+  fechaCreacion DateTime @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion")
+
+  usuarios      Usuario[]
+  permisos      RolPermiso[]
+
+  @@map("roles")
+}
+
+model Permiso {
+  id          Int    @id @default(autoincrement())
+  codigo      String @unique @db.VarChar(50)
+  nombre      String @db.VarChar(100)
+  descripcion String? @db.Text
+  modulo      String @db.VarChar(50)
+
+  roles RolPermiso[]
+
+  @@map("permisos")
+}
+
+model RolPermiso {
+  rolId      Int @map("rol_id")
+  permisoId  Int @map("permiso_id")
+
+  rol     Rol     @relation(fields: [rolId], references: [id])
+  permiso Permiso @relation(fields: [permisoId], references: [id])
+
+  @@id([rolId, permisoId])
+  @@map("rol_permiso")
+}
+
+model Usuario {
+  id         Int    @id @default(autoincrement())
+  rut        String @unique @db.VarChar(12)
+  nombre     String @db.VarChar(100)
+  email      String? @unique @db.VarChar(100)
+  claveHash  String @map("clave_hash") @db.VarChar(255)
+  rolId      Int    @map("rol_id")
+  telefono   String? @db.VarChar(20)
+  activo     Boolean @default(true)
+  ultimoAcceso DateTime? @map("ultimo_acceso")
+  debeCambiarClave Boolean @default(false) @map("debe_cambiar_clave")
+
+  fechaCreacion DateTime @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion")
+  creadoPor     Int? @map("creado_por")
+  actualizadoPor Int? @map("actualizado_por")
+
+  rol               Rol               @relation(fields: [rolId], references: [id])
+  creador           Usuario?          @relation("UsuarioCreadoPor", fields: [creadoPor], references: [id])
+  creados           Usuario[]         @relation("UsuarioCreadoPor")
+  actualizador      Usuario?          @relation("UsuarioActualizadoPor", fields: [actualizadoPor], references: [id])
+  actualizados      Usuario[]         @relation("UsuarioActualizadoPor")
+
+  solicitudesTrabajador Solicitud[]   @relation("SolicitudTrabajador")
+  solicitudesPrepara    Solicitud[]   @relation("SolicitudPrepara")
+  solicitudesEntrega    Solicitud[]   @relation("SolicitudEntrega")
+  solicitudesAprueba    Solicitud[]   @relation("SolicitudAprueba")
+  movimientosStock      MovimientoStock[]
+  devolucionesTrabajador Devolucion[]
+  devolucionesPanolero  Devolucion[]  @relation("DevolucionPanolero")
+  comprasAutorizadas    CompraAutorizada[]
+  auditorias            Auditoria[]
+  aprobaciones          AprobacionSolicitud[]
+  detalleModificaciones DetalleSolicitud[] @relation("DetalleModificaPanolero")
+  ordenesTrabajoCreadas OrdenTrabajo[]
+
+  @@map("usuarios")
+}
+
+model OrdenTrabajo {
+  id                 Int       @id @default(autoincrement())
+  codigo             String    @unique @db.VarChar(50)
+  descripcion        String    @db.Text
+  estado             EstadoOT  @default(ACTIVA)
+  estadoEquipo       String?   @map("estado_equipo") @db.VarChar(50)
+  presupuestoEstimado Decimal? @map("presupuesto_estimado") @db.Decimal(12, 2)
+  fechaInicio        DateTime? @map("fecha_inicio")
+  fechaCierre        DateTime? @map("fecha_cierre")
+  activo             Boolean   @default(true)
+
+  fechaCreacion DateTime @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion")
+  creadoPor     Int? @map("creado_por")
+  actualizadoPor Int? @map("actualizado_por")
+
+  solicitudes Solicitud[]
+  creador     Usuario? @relation(fields: [creadoPor], references: [id])
+
+  @@map("ordenes_trabajo")
+}
+
+model Proceso {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique @db.VarChar(100)
+  orden  Int    @default(0)
+  activo Boolean @default(true)
+
+  subprocesos Subproceso[]
+  solicitudes Solicitud[]
+
+  @@map("procesos")
+}
+
+model Subproceso {
+  id        Int    @id @default(autoincrement())
+  procesoId Int    @map("proceso_id")
+  nombre    String @db.VarChar(100)
+  orden     Int    @default(0)
+  activo    Boolean @default(true)
+
+  proceso     Proceso     @relation(fields: [procesoId], references: [id])
+  solicitudes Solicitud[]
+
+  @@map("subprocesos")
+}
+
+model CategoriaInsumo {
+  id                  Int    @id @default(autoincrement())
+  nombre              String @unique @db.VarChar(100)
+  descripcion         String? @db.Text
+  colorClasificacion  String? @map("color_clasificacion") @db.VarChar(7)
+  activo              Boolean @default(true)
+
+  fechaCreacion DateTime @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion")
+  creadoPor     Int? @map("creado_por")
+  actualizadoPor Int? @map("actualizado_por")
+
+  insumos Insumo[]
+
+  @@map("categorias_insumo")
+}
+
+model Marca {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique @db.VarChar(100)
+  activo Boolean @default(true)
+
+  modelos Modelo[]
+  insumos Insumo[]
+
+  @@map("marcas")
+}
+
+model Modelo {
+  id      Int    @id @default(autoincrement())
+  marcaId Int    @map("marca_id")
+  nombre  String @db.VarChar(100)
+  tipo    String? @db.VarChar(50)
+  activo  Boolean @default(true)
+
+  marca   Marca   @relation(fields: [marcaId], references: [id])
+  insumos Insumo[]
+
+  @@map("modelos")
+}
+
+model Insumo {
+  id             Int    @id @default(autoincrement())
+  categoriaId    Int    @map("categoria_id")
+  codigoInterno  String @unique @map("codigo_interno") @db.VarChar(50)
+  nombre         String @db.VarChar(150)
+  descripcion    String? @db.Text
+  unidadMedida   String @default("unidad") @map("unidad_medida") @db.VarChar(20)
+  tipoInsumo     TipoInsumo @default(CONSUMIBLE) @map("tipo_insumo")
+  marcaId        Int?   @map("marca_id")
+  modeloId       Int?   @map("modelo_id")
+  numeroSerie    String? @map("numero_serie") @db.VarChar(100)
+  stockActual    Decimal @default(0) @map("stock_actual") @db.Decimal(10, 2)
+  stockMinimo    Decimal @default(0) @map("stock_minimo") @db.Decimal(10, 2)
+  estadoEquipo   String? @map("estado_equipo") @db.VarChar(50)
+  colorClasificacion String? @map("color_clasificacion") @db.VarChar(7)
+  activo         Boolean @default(true)
+
+  fechaCreacion DateTime @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion")
+  creadoPor     Int? @map("creado_por")
+  actualizadoPor Int? @map("actualizado_por")
+
+  categoria   CategoriaInsumo @relation(fields: [categoriaId], references: [id])
+  marca       Marca?          @relation(fields: [marcaId], references: [id])
+  modelo      Modelo?         @relation(fields: [modeloId], references: [id])
+  detalles    DetalleSolicitud[]
+  movimientos MovimientoStock[]
+  devoluciones DetalleDevolucion[]
+  costos      CostoInsumo[]
+  compras     CompraAutorizada[]
+
+  @@map("insumos")
+}
+
+// ==================== TRANSACCIONALES ====================
+
+model Solicitud {
+  id                    Int    @id @default(autoincrement())
+  trabajadorId          Int    @map("trabajador_id")
+  otId                  Int    @map("ot_id")
+  procesoId             Int    @map("proceso_id")
+  subprocesoId          Int?   @map("subproceso_id")
+  estado                EstadoSolicitud @default(PENDIENTE)
+  fechaSolicitud        DateTime @default(now()) @map("fecha_solicitud")
+  fechaAprobacion       DateTime? @map("fecha_aprobacion")
+  fechaPreparacion      DateTime? @map("fecha_preparacion")
+  fechaEntrega          DateTime? @map("fecha_entrega")
+  fechaAnulacion        DateTime? @map("fecha_anulacion")
+  fechaCierre           DateTime? @map("fecha_cierre")
+  panoleroPreparaId     Int?   @map("panolero_prepara_id")
+  panoleroEntregaId     Int?   @map("panolero_entrega_id")
+  supervisorApruebaId   Int?   @map("supervisor_aprueba_id")
+  motivoRechazo         String? @map("motivo_rechazo") @db.Text
+  motivoAnulacion       String? @map("motivo_anulacion") @db.Text
+  justificacionSinStock String? @map("justificacion_sin_stock") @db.Text
+  esUrgente             Boolean @default(false) @map("es_urgente")
+  observaciones         String? @db.Text
+
+  fechaCreacion DateTime @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion")
+
+  trabajador    Usuario     @relation("SolicitudTrabajador", fields: [trabajadorId], references: [id])
+  ot            OrdenTrabajo @relation(fields: [otId], references: [id])
+  proceso       Proceso     @relation(fields: [procesoId], references: [id])
+  subproceso    Subproceso? @relation(fields: [subprocesoId], references: [id])
+  panoleroPrepara Usuario?  @relation("SolicitudPrepara", fields: [panoleroPreparaId], references: [id])
+  panoleroEntrega Usuario?  @relation("SolicitudEntrega", fields: [panoleroEntregaId], references: [id])
+  supervisorAprueba Usuario? @relation("SolicitudAprueba", fields: [supervisorApruebaId], references: [id])
+
+  detalles      DetalleSolicitud[]
+  aprobaciones  AprobacionSolicitud[]
+  movimientos   MovimientoStock[]
+  devoluciones  Devolucion[]
+
+  @@index([trabajadorId, estado])
+  @@index([estado, fechaSolicitud])
+  @@index([otId])
+  @@map("solicitudes")
+}
+
+model DetalleSolicitud {
+  id                       Int    @id @default(autoincrement())
+  solicitudId              Int    @map("solicitud_id")
+  insumoId                 Int    @map("insumo_id")
+  cantidadSolicitada       Decimal @map("cantidad_solicitada") @db.Decimal(10, 2)
+  cantidadEntregada        Decimal @default(0) @map("cantidad_entregada") @db.Decimal(10, 2)
+  cantidadDevuelta         Decimal @default(0) @map("cantidad_devuelta") @db.Decimal(10, 2)
+  estadoLinea              EstadoLineaSolicitud @default(SOLICITADO) @map("estado_linea")
+  motivoAnulacion          String? @map("motivo_anulacion") @db.Text
+  justificacionModificacion String? @map("justificacion_modificacion") @db.Text
+  panoleroModificaId       Int?    @map("panolero_modifica_id")
+  costoUnitarioHistorico   Decimal? @map("costo_unitario_historico") @db.Decimal(12, 2)
+
+  fechaCreacion DateTime @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion")
+
+  solicitud    Solicitud @relation(fields: [solicitudId], references: [id])
+  insumo       Insumo    @relation(fields: [insumoId], references: [id])
+  panoleroModifica Usuario? @relation("DetalleModificaPanolero", fields: [panoleroModificaId], references: [id])
+
+  @@map("detalle_solicitud")
+}
+
+model AprobacionSolicitud {
+  id            Int    @id @default(autoincrement())
+  solicitudId   Int    @map("solicitud_id")
+  supervisorId  Int    @map("supervisor_id")
+  accion        String @db.VarChar(20) // APROBADA, RECHAZADA, OBSERVADA
+  motivo        String? @db.Text
+  fechaAprobacion DateTime @default(now()) @map("fecha_aprobacion")
+
+  solicitud   Solicitud @relation(fields: [solicitudId], references: [id])
+  supervisor  Usuario   @relation(fields: [supervisorId], references: [id])
+
+  @@map("aprobaciones_solicitud")
+}
+
+model MovimientoStock {
+  id                    Int    @id @default(autoincrement())
+  tipo                  TipoMovimiento
+  insumoId              Int    @map("insumo_id")
+  cantidad              Decimal @db.Decimal(10, 2)
+  costoUnitarioHistorico Decimal? @map("costo_unitario_historico") @db.Decimal(12, 2)
+  solicitudId           Int?   @map("solicitud_id")
+  devolucionId          Int?   @map("devolucion_id")
+  usuarioId             Int    @map("usuario_id")
+  observacion           String? @db.Text
+  fechaMovimiento       DateTime @default(now()) @map("fecha_movimiento")
+  fechaCreacion         DateTime @default(now()) @map("fecha_creacion")
+
+  insumo     Insumo    @relation(fields: [insumoId], references: [id])
+  solicitud  Solicitud? @relation(fields: [solicitudId], references: [id])
+  devolucion Devolucion? @relation(fields: [devolucionId], references: [id])
+  usuario    Usuario   @relation(fields: [usuarioId], references: [id])
+
+  @@index([insumoId, fechaMovimiento])
+  @@index([tipo])
+  @@map("movimientos_stock")
+}
+
+model Devolucion {
+  id             Int    @id @default(autoincrement())
+  solicitudId    Int    @map("solicitud_id")
+  trabajadorId   Int    @map("trabajador_id")
+  panoleroId     Int    @map("panolero_id")
+  estadoGeneral  String? @map("estado_general") @db.VarChar(50)
+  observacion    String? @db.Text
+  fechaDevolucion DateTime @default(now()) @map("fecha_devolucion")
+  fechaCreacion   DateTime @default(now()) @map("fecha_creacion")
+  creadoPor       Int? @map("creado_por")
+
+  solicitud     Solicitud @relation(fields: [solicitudId], references: [id])
+  trabajador    Usuario   @relation(fields: [trabajadorId], references: [id])
+  panolero      Usuario   @relation("DevolucionPanolero", fields: [panoleroId], references: [id])
+  detalles      DetalleDevolucion[]
+  movimientos   MovimientoStock[]
+
+  @@map("devoluciones")
+}
+
+model DetalleDevolucion {
+  id              Int    @id @default(autoincrement())
+  devolucionId    Int    @map("devolucion_id")
+  insumoId        Int    @map("insumo_id")
+  cantidadDevuelta Decimal @map("cantidad_devuelta") @db.Decimal(10, 2)
+  estadoInsumo    EstadoInsumoDevolucion @default(BUENO) @map("estado_insumo")
+  observacion     String? @db.Text
+  fechaCreacion   DateTime @default(now()) @map("fecha_creacion")
+
+  devolucion Devolucion @relation(fields: [devolucionId], references: [id])
+  insumo     Insumo     @relation(fields: [insumoId], references: [id])
+
+  @@map("detalle_devolucion")
+}
+
+model CostoInsumo {
+  id             Int    @id @default(autoincrement())
+  insumoId       Int    @map("insumo_id")
+  costoUnitario  Decimal @map("costo_unitario") @db.Decimal(12, 2)
+  moneda         String @default("CLP") @db.VarChar(3)
+  fechaDesde     DateTime @map("fecha_desde")
+  fechaHasta     DateTime? @map("fecha_hasta")
+  proveedor      String? @db.VarChar(100)
+  activo         Boolean @default(true)
+  fechaCreacion  DateTime @default(now()) @map("fecha_creacion")
+  creadoPor      Int? @map("creado_por")
+
+  insumo Insumo @relation(fields: [insumoId], references: [id])
+
+  @@index([insumoId, fechaDesde])
+  @@map("costos_insumo")
+}
+
+model CompraAutorizada {
+  id                Int    @id @default(autoincrement())
+  supervisorId      Int    @map("supervisor_id")
+  insumoId          Int    @map("insumo_id")
+  cantidadSolicitada Decimal @map("cantidad_solicitada") @db.Decimal(10, 2)
+  cantidadRecibida  Decimal @default(0) @map("cantidad_recibida") @db.Decimal(10, 2)
+  estado            EstadoCompra @default(PENDIENTE)
+  proveedorSugerido String? @map("proveedor_sugerido") @db.VarChar(100)
+  observacion       String? @db.Text
+  fechaAutorizacion DateTime @default(now()) @map("fecha_autorizacion")
+  fechaRecepcion    DateTime? @map("fecha_recepcion")
+  fechaCreacion     DateTime @default(now()) @map("fecha_creacion")
+
+  supervisor Usuario @relation(fields: [supervisorId], references: [id])
+  insumo     Insumo  @relation(fields: [insumoId], references: [id])
+
+  @@map("compras_autorizadas")
+}
+
+model Auditoria {
+  id             Int    @id @default(autoincrement())
+  tablaAfectada  String @map("tabla_afectada") @db.VarChar(50)
+  registroId     Int    @map("registro_id")
+  accion         String @db.VarChar(20)
+  usuarioId      Int    @map("usuario_id")
+  ipOrigen       String? @map("ip_origen") @db.VarChar(45)
+  datosAnteriores Json? @map("datos_anteriores")
+  datosNuevos    Json? @map("datos_nuevos")
+  fechaAccion    DateTime @default(now()) @map("fecha_accion")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([tablaAfectada, registroId])
+  @@index([usuarioId, fechaAccion])
+  @@map("auditoria")
+}

@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: panol-db
+    restart: always
+    environment:
+      POSTGRES_USER: panol
+      POSTGRES_PASSWORD: panol123
+      POSTGRES_DB: panol_digital
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/seeds.sql:/docker-entrypoint-initdb.d/seeds.sql
+    networks:
+      - panol-net
+
+  backend:
+    build: ./backend
+    container_name: panol-backend
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: postgresql://panol:panol123@db:5432/panol_digital?schema=public
+      JWT_SECRET: super-secret-jwt-key-panol-digital-2026
+      JWT_REFRESH_SECRET: super-refresh-secret-panol-digital-2026
+      PORT: 4000
+      NODE_ENV: development
+      FRONTEND_URL: http://localhost:3000
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - panol-net
+    command: ["npm", "run", "dev"]
+
+  frontend:
+    build: ./frontend
+    container_name: panol-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:4000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - panol-net
+    command: ["npm", "run", "dev"]
+
+volumes:
+  pgdata:
+
+networks:
+  panol-net:
+    driver: bridge
