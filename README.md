@@ -226,7 +226,7 @@ VITE_API_URL=http://localhost:4000
 El frontend está deployado en Vercel como SPA:
 
 ```
-URL: https://frontend-1frhq5bwr-maxbarrioslopezs-projects.vercel.app
+URL: https://frontend-murex-eight-51.vercel.app
 ```
 
 > **Nota:** El frontend se conecta al backend en `http://localhost:4000`. Al abrirlo desde Vercel sin el backend corriendo, verás el login y la UI pero las API calls fallarán. Para prueba completa, clona el repo y corre localmente.
