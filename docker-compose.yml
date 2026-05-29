@@ -6,8 +6,8 @@ services:
     container_name: panol-db
     restart: always
     environment:
-      POSTGRES_USER: panol
-      POSTGRES_PASSWORD: panol123
+      POSTGRES_USER: ${POSTGRES_USER:-panol}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: panol_digital
     ports:
       - "5432:5432"
@@ -24,9 +24,9 @@ services:
     ports:
       - "4000:4000"
     environment:
-      DATABASE_URL: postgresql://panol:panol123@db:5432/panol_digital?schema=public
-      JWT_SECRET: super-secret-jwt-key-panol-digital-2026
-      JWT_REFRESH_SECRET: super-refresh-secret-panol-digital-2026
+      DATABASE_URL: postgresql://panol:${POSTGRES_PASSWORD}@db:5432/panol_digital?schema=public
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
       PORT: 4000
       NODE_ENV: development
       FRONTEND_URL: http://localhost:3000

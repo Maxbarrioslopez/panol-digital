@@ -29,6 +29,49 @@ Sistema completo de gestión de pañol digital para control de insumos consumibl
 - **Bilingüe:** Español e Inglés (i18n)
 - **Responsive:** Mobile-first design
 
+## Arquitectura
+
+```
+                    ┌──────────────────────┐
+                    │     Frontend (:3000)  │
+                    │  React 18 + Vite + TS │
+                    │  Zustand + Recharts   │
+                    ├──────────────────────┤
+                    │  5 roles · i18n EN/ES │
+                    │  Dark/Light mode      │
+                    └────────┬──────────────┘
+                             │ HTTP (Axios) + WebSocket
+                    ┌────────▼──────────────┐
+                    │   Backend API (:4000)  │
+                    │  Express + TypeScript  │
+                    ├──────────────────────┤
+                    │  14 módulos REST      │
+                    │  JWT auth middleware   │
+                    │  RBAC por módulo      │
+                    │  Auditoría (log CRUD) │
+                    │  Socket.io events     │
+                    └────────┬──────────────┘
+                             │ Prisma ORM
+                    ┌────────▼──────────────┐
+                    │   PostgreSQL 16        │
+                    │   18 modelos · 5 roles │
+                    │   Migraciones + seed   │
+                    └───────────────────────┘
+```
+
+### Flujo de solicitudes
+
+```
+Trabajador → Wizard solicitud → Backend (state machine)
+                                   │
+                    ┌──────────────┼──────────────┐
+                    ▼              ▼              ▼
+              Pañolero:      Supervisor:     Stock:
+              entregar       autorizar       actualizar
+              anular         comprar         costo
+              modificar      recibir         trazabilidad
+```
+
 ## Stack tecnológico
 
 | Capa | Tecnología |
